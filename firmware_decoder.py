@@ -9,6 +9,40 @@ from Crypto.Hash import MD5, SHA
 from Crypto.Random import get_random_bytes
 from argparse import ArgumentParser
 
+
+class BinSeeker:
+    def __init__(self, data=bytes()):
+        self.position = 0
+        self.data = bytes(data)
+        c = 0
+        for x in data:
+            c = c + 1
+        self.size = c
+
+    def read_next_bytes(self, number_of_bytes):
+        out = self.data[self.position:self.position+number_of_bytes]
+        self.position += number_of_bytes
+        return out
+
+    def read_between(self, start, end):
+        out = self.data[start:end]
+        return out
+
+    def read_to_end(self):
+        out = self.data[self.position:]
+        self.position = self.size
+        return out
+
+    def reset_position(self):
+        self.position = 0
+
+    def set_position(self, position):
+        self.position = position
+
+    def get_position(self):
+        return self.position
+
+
 parser = ArgumentParser()
 parser.add_argument("-f", "--file", dest="filename",
                     help="read from firmware file", metavar="FILE")
@@ -22,39 +56,6 @@ else:
 
     #rc4data = bytes.fromhex("954494873DBF65CA20018B21290256B5B8797232230C7B76544C5222DA5548F8D6702B808EB0D23FC64A0BC3C99B68EF61AED781D366759ABCE8AB5C4E89C71DACAAE06469179262F640FDC5580FFEB43EA235F37F31CEEB574F4573416FD593E6B211DDB991FF90056EFCBAA99E26E906E33C1571B31A5025141C42125DA5E5992D8FA88D963413A446DCCCA6CFA0C20349D05A84F124282F9839477CD8A15FAD095EEDC47E60DEA76AD1F4DBCD4BB72C1E9C27E183C0FA0A512A30EE9D53F57D7A19D9E2CB4D826DF9D400BBEA0D10E71F373A67F0851BFB6CBEEC865B8808DF36C8779FAFE4B18C97072E74383BBDF2436316F7338A780EA3046B1859C1B6")
     key = bytes.fromhex("f16d3357025e174fbe8f895bd1798062096750966c51f853")
-
-    class BinSeeker:
-        def __init__(self, data=bytes()):
-            self.position = 0
-            self.data = bytes(data)
-
-            c = 0
-            for x in data:
-                c = c + 1
-            self.size = c
-
-        def read_next_bytes(self, number_of_bytes):
-            out = self.data[self.position:self.position+number_of_bytes]
-            self.position += number_of_bytes
-            return out
-
-        def read_between(self, start, end):
-            out = self.data[start:end]
-            return out
-
-        def read_to_end(self):
-            out = self.data[self.position:]
-            self.position = self.size
-            return out
-
-        def reset_position(self):
-            self.position = 0
-
-        def set_position(self, position):
-            self.position = position
-
-        def get_position(self):
-            return self.position
 
     with open(file, "r+b") as f:
         file = bytes(f.read())
@@ -137,12 +138,16 @@ else:
 
                     with open(path + '\\' + basename + '_00_firmware_encryped.bin', "w+b") as fw:
                         fw.write(firmware)
+                        fw.close()
                     with open(path + '\\' + basename + '_00_pic.bin', "w+b") as picture:
                         picture.write(pic)
+                        picture.close()
                     with open(path + '\\' + basename + '_01_firmware_decrypted.bin', "w+b") as fwd:
                         fwd.write(decrypted_fw)
+                        fwd.close()
                     with open(path + '\\' + basename + '_02_appdata_decrypted.bin', "w+b") as add:
                         add.write(appcode)
+                        add.close()
                 else:
                     print(
                         "ERROR: checksum from appcode does not match embedded checksum")
@@ -152,4 +157,5 @@ else:
         else:
             print("ERROR: hash from file does not match firmware hash")
 
+    f.close()
     print("SUCCESS: export successful. exiting")
