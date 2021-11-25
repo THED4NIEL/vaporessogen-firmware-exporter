@@ -117,10 +117,13 @@ START PROGRAM
 parser = ArgumentParser()
 parser.add_argument("-f", "--file", dest="filename",
                     help="read from firmware file", metavar="FILE")
+parser.add_argument("-d", "--debug", dest="debug",
+                    help="set debug mode", action='store_true')
 args = parser.parse_args()
 
 # for debug purpose
-args.filename = ".\\firmware.bin"
+if args.debug == True:
+    args.filename = ".\\firmware.bin"
 
 if args.filename == None or os.path.exists(args.filename) == False:
     print("no file found")
