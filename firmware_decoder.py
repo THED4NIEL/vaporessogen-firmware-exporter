@@ -29,7 +29,7 @@ class BinSeeker:
 
 
 class FirmwareData:
-    def __init__(self, productName="", softVersion="", hwVersion="", GenerateTime="", len=0, startAddr=0, data=bytes()):
+    def __init__(self, productName='', softVersion='', hwVersion='', GenerateTime='', len=0, startAddr=0, data=bytes()):
         self.productName = productName
         self.softVersion = softVersion
         self.hwVersion = hwVersion
@@ -58,7 +58,7 @@ def decrypt(input_data):
     # read firmware field for checksum
     cs_tmp = bs.read_next_bytes(4)
     checksum_embedded = int.from_bytes(
-        cs_tmp, byteorder="big", signed=False)
+        cs_tmp, byteorder='big', signed=False)
 
     # verify checksum for decrypted firmware
     flag_checksum_match = checksum_calculated == checksum_embedded
@@ -85,17 +85,17 @@ def decrypt(input_data):
         # read firmware field for code length
         len_tmp = bs.read_next_bytes(4)
         firmware_length = int.from_bytes(
-            len_tmp, byteorder="big", signed=False)
+            len_tmp, byteorder='big', signed=False)
 
         # read firmware field for startAddr
         saddr_tmp = bs.read_next_bytes(4)
         startAddr = int.from_bytes(
-            saddr_tmp, byteorder="big", signed=False)
+            saddr_tmp, byteorder='big', signed=False)
 
         # read firmware field for checksum
         cs_tmp = bs.read_next_bytes(4)
         checksum_embedded = int.from_bytes(
-            cs_tmp, byteorder="big", signed=False)
+            cs_tmp, byteorder='big', signed=False)
 
         # read appcode
         data = bs.read_next_bytes(firmware_length)
@@ -109,11 +109,11 @@ def decrypt(input_data):
             return FirmwareData(productName, softVersion,
                                 hwVersion, GenerateTime, firmware_length, startAddr, data)
         else:
-            print("ERROR: checksum from codepart does not match embedded checksum")
+            print('ERROR: checksum from codepart does not match embedded checksum')
             return FirmwareData()
     else:
         print(
-            "ERROR: checksum from decrypted firmware part does not match embedded checksum")
+            'ERROR: checksum from decrypted firmware part does not match embedded checksum')
     return FirmwareData()
 
 
@@ -123,24 +123,24 @@ START PROGRAM
 
 '''
 parser = ArgumentParser()
-parser.add_argument("-f", "--file", dest="filename",
-                    help="read from firmware file", metavar="FILE")
-parser.add_argument("-d", "--debug", dest="debug",
-                    help="set debug mode", action='store_true')
+parser.add_argument('-f', '--file', dest='filename',
+                    help='read from firmware file', metavar='FILE')
+parser.add_argument('-d', '--debug', dest='debug',
+                    help='set debug mode', action='store_true')
 args = parser.parse_args()
 
 # for debug purpose
 if args.debug == True:
-    args.filename = ".\\firmware.bin"
+    args.filename = os.path.join('.', 'firmware.bin')
 
 if args.filename == None or os.path.exists(args.filename) == False:
-    print("no file found")
+    print('no file found')
 else:
     path, file = os.path.split(os.path.abspath(args.filename))
     basename = os.path.splitext(file)[0]
 
     # read upgrade package
-    with open(file, "r+b") as f:
+    with open(file, 'r+b') as f:
         file = bytes(f.read())
 
     # create new instance of BinSeeker
@@ -165,30 +165,29 @@ else:
 
         # read firmware
         temp = bs.read_next_bytes(8)
-        firmware_size = int.from_bytes(temp, byteorder="little", signed=False)
+        firmware_size = int.from_bytes(temp, byteorder='little', signed=False)
         firmware = bs.read_next_bytes(firmware_size)
 
         # read firmware configuration
         temp = bs.read_next_bytes(8)
-        config_size = int.from_bytes(temp, byteorder="little", signed=False)
+        config_size = int.from_bytes(temp, byteorder='little', signed=False)
         config = bs.read_next_bytes(config_size)
-
-        with open(path + '\\' + basename + '_00_firmware_encryped.bin', "w+b") as fw:
+        with open(os.path.join(path, basename + '_00_firmware_encryped.bin'), 'w+b') as fw:
             fw.write(firmware)
-        with open(path + '\\' + basename + '_01_config_encrypted.bin', "w+b") as p:
+        with open(os.path.join(path, basename + '_01_config_encrypted.bin'), 'w+b') as p:
             p.write(config)
 
         firmware_decrypted = decrypt(firmware)
         if not firmware_decrypted.len == 0:
-            with open(path + '\\' + basename + '_00_firmware_decryped.bin', "w+b") as fw:
+            with open(os.path.join(path, basename + '_00_firmware_decryped.bin'), 'w+b') as fw:
                 fw.write(firmware_decrypted.data)
 
         config_decrypted = decrypt(config)
         if not config_decrypted.len == 0:
-            with open(path + '\\' + basename + '_01_config_decrypted.bin', "w+b") as p:
+            with open(os.path.join(path, basename + '_01_config_decrypted.bin'), 'w+b') as p:
                 p.write(config_decrypted.data)
 
-        print("finished")
+        print('finished')
 
     else:
-        print("ERROR: hash from encrypted firmware part does not match embedded hash")
+        print('ERROR: hash from encrypted firmware part does not match embedded hash')
