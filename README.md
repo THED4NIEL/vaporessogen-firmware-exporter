@@ -13,13 +13,17 @@ contains checksums for firmware parts, informations about product type, firmware
 
 contains the encrypted firmware part from the file without additional data
 
-### BASENAME_00_pic.bin
+### BASENAME_00_pic_encrypted.bin
 
-TBD
+contains the encrypted config part for the device
 
 ### BASENAME_01_firmware_decrypted.bin
 
 contains the decrypted firmware part
+
+### BASENAME_01_pic_decrypted.bin
+
+contains the decrypted config part for the device
 
 ### BASENAME_02_firmware_encrypted.bin
 
