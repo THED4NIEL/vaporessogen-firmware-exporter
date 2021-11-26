@@ -1,20 +1,17 @@
 import os
-import numpy as np
 from binascii import crc32
-from Crypto.Cipher import ARC4
-from Crypto.Hash import MD5, SHA
-from Crypto.Random import get_random_bytes
 from argparse import ArgumentParser
+
+# Package: PYCRYPTODOME
+from Crypto.Cipher import ARC4
+from Crypto.Hash import MD5
 
 
 class BinSeeker:
     def __init__(self, data=bytes()):
         self.position = 0
         self.data = bytes(data)
-        c = 0
-        for x in data:
-            c = c + 1
-        self.size = c
+        self.size = len(data)
 
     def read_next_bytes(self, number_of_bytes):
         out = self.data[self.position:self.position+number_of_bytes]
@@ -43,63 +40,74 @@ class FirmwareData:
 
 
 def decrypt(input_data):
-    key = bytes.fromhex("f16d3357025e174fbe8f895bd1798062096750966c51f853")
-    rc4 = ARC4.new(key)
+    # initialize decryption
+    rc4 = ARC4.new(
+        b'\xf1\x6d\x33\x57\x02\x5e\x17\x4f\xbe\x8f\x89\x5b\xd1\x79\x80\x62\x09\x67\x50\x96\x6c\x51\xf8\x53')
 
+    # decrypt firmware
     decrypted = bytes(rc4.decrypt(input_data))
+
+    # create a new instance of BinSeeker for reading
     bs = BinSeeker(decrypted)
     bs.reset_position()
-    # create array for checksum calculation
-    arr = bytes(bs.size - 4)
-    arr = bs.read_next_bytes(bs.size - 4)
-    checksum_calculated = crc32(arr)
+
+    # calculate checksum for decrypted firmware
+    tmp_fw = bs.read_next_bytes(bs.size - 4)
+    checksum_calculated = crc32(tmp_fw)
+
     # read firmware field for checksum
-    arr = bytes(4)
-    arr = bs.read_next_bytes(4)
-    checksum_embedded = np.uint((int(arr[0]) << 24) + (int(arr[1])
-                                                       << 16) + (int(arr[2]) << 8) + int(arr[3]))
+    cs_tmp = bs.read_next_bytes(4)
+    checksum_embedded = int.from_bytes(
+        cs_tmp, byteorder="big", signed=False)
+
+    # verify checksum for decrypted firmware
     flag_checksum_match = checksum_calculated == checksum_embedded
     if flag_checksum_match:
+        # reset BinSeeker position
         bs.reset_position()
-        # create array for product info
-        arr = bytes(16)
+
         # read firmware field for productType
-        arr = bs.read_next_bytes(16)
-        productName = arr.replace(b'\x00', b'').decode('ascii')
+        productName = bs.read_next_bytes(
+            16).replace(b'\x00', b'').decode('ascii')
+
         # read firmware field for softVersion
-        arr = bs.read_next_bytes(16)
-        softVersion = arr.replace(b'\x00', b'').decode('ascii')
+        softVersion = bs.read_next_bytes(
+            16).replace(b'\x00', b'').decode('ascii')
+
         # read firmware field for hwVersion
-        arr = bs.read_next_bytes(16)
-        hwVersion = arr.replace(b'\x00', b'').decode('ascii')
-        # create array for product info
-        arr = bytes(32)
+        hwVersion = bs.read_next_bytes(16).replace(
+            b'\x00', b'').decode('ascii')
+
         # read firmware field for GenerateTime
-        arr = bs.read_next_bytes(32)
-        GenerateTime = arr.replace(b'\x00', b'').decode('ascii')
-        # create array for product info
-        arr = bytes(32)
+        GenerateTime = bs.read_next_bytes(
+            32).replace(b'\x00', b'').decode('ascii')
+
         # read firmware field for code length
-        arr = bs.read_next_bytes(4)
-        len = np.uint((int(arr[0]) << 24) + (int(arr[1])
-                      << 16) + (int(arr[2]) << 8) + int(arr[3]))
+        len_tmp = bs.read_next_bytes(4)
+        firmware_length = int.from_bytes(
+            len_tmp, byteorder="big", signed=False)
+
         # read firmware field for startAddr
-        arr = bs.read_next_bytes(4)
-        startAddr = np.uint(
-            (int(arr[0]) << 24) + (int(arr[1]) << 16) + (int(arr[2]) << 8) + int(arr[3]))
+        saddr_tmp = bs.read_next_bytes(4)
+        startAddr = int.from_bytes(
+            saddr_tmp, byteorder="big", signed=False)
+
         # read firmware field for checksum
-        arr = bs.read_next_bytes(4)
-        checksum_embedded = np.uint((int(arr[0]) << 24) + (int(arr[1])
-                                                           << 16) + (int(arr[2]) << 8) + int(arr[3]))
-        # create array for appcode
-        arr = bytes(len)
+        cs_tmp = bs.read_next_bytes(4)
+        checksum_embedded = int.from_bytes(
+            cs_tmp, byteorder="big", signed=False)
+
         # read appcode
-        data = bs.read_next_bytes(len)
+        data = bs.read_next_bytes(firmware_length)
+
+        # calculate checksum for appcode
         checksum_calculated = crc32(data)
+
+        # verify checksum of appcode
         flag_checksum_match = checksum_embedded == checksum_calculated
         if flag_checksum_match:
             return FirmwareData(productName, softVersion,
-                                hwVersion, GenerateTime, len, startAddr, data)
+                                hwVersion, GenerateTime, firmware_length, startAddr, data)
         else:
             print("ERROR: checksum from codepart does not match embedded checksum")
             return FirmwareData()
@@ -131,47 +139,54 @@ else:
     path, file = os.path.split(os.path.abspath(args.filename))
     basename = os.path.splitext(file)[0]
 
-    f = open(file, "r+b")
-    file = bytes(f.read())
-    f.close
+    # read upgrade package
+    with open(file, "r+b") as f:
+        file = bytes(f.read())
 
-    dat = bytes()
-
+    # create new instance of BinSeeker
     bs = BinSeeker(file)
     bs.reset_position()
+
+    # read upgrade package
     data = bs.read_next_bytes(bs.size-16)
+
+    # calculate hash from upgrade package
     hash_calculated = MD5.new(data).hexdigest().upper()
+
+    # read hash from upgrade package
     temp = bs.read_next_bytes(16)
     hash_embedded = ''.join(f'{n:02x}' for n in temp).upper()
-    flag_hashesmatch = hash_embedded == hash_calculated
 
+    # verify hash for upgrade package
+    flag_hashesmatch = hash_embedded == hash_calculated
     if flag_hashesmatch:
+        # reset BinSeeker position
         bs.reset_position()
+
+        # read firmware
         temp = bs.read_next_bytes(8)
-        firmware_size = int(np.frombuffer(temp, np.uint64))
+        firmware_size = int.from_bytes(temp, byteorder="little", signed=False)
         firmware = bs.read_next_bytes(firmware_size)
+
+        # read firmware configuration
         temp = bs.read_next_bytes(8)
-        pic_size = int(np.frombuffer(temp, np.uint64))
-        pic = bs.read_next_bytes(pic_size)
+        config_size = int.from_bytes(temp, byteorder="little", signed=False)
+        config = bs.read_next_bytes(config_size)
 
         with open(path + '\\' + basename + '_00_firmware_encryped.bin', "w+b") as fw:
             fw.write(firmware)
-            fw.close()
-        with open(path + '\\' + basename + '_01_pic_encrypted.bin', "w+b") as p:
-            p.write(pic)
-            p.close()
+        with open(path + '\\' + basename + '_01_config_encrypted.bin', "w+b") as p:
+            p.write(config)
 
         firmware_decrypted = decrypt(firmware)
         if not firmware_decrypted.len == 0:
             with open(path + '\\' + basename + '_00_firmware_decryped.bin', "w+b") as fw:
                 fw.write(firmware_decrypted.data)
-                fw.close()
 
-        pic_decrypted = decrypt(pic)
-        if not pic_decrypted.len == 0:
-            with open(path + '\\' + basename + '_01_pic_decrypted.bin', "w+b") as p:
-                p.write(pic_decrypted.data)
-                p.close()
+        config_decrypted = decrypt(config)
+        if not config_decrypted.len == 0:
+            with open(path + '\\' + basename + '_01_config_decrypted.bin', "w+b") as p:
+                p.write(config_decrypted.data)
 
         print("finished")
 
